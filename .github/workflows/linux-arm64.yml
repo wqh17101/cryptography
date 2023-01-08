@@ -1,0 +1,70 @@
+name: Linux ARM64 CI
+on:
+  pull_request: {}
+  push:
+    branches:
+      - '*'
+    tags:
+      - '*.*'
+      - '*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  linux-distros:
+    runs-on: [self-hosted, Linux, ARM64]
+    container: ghcr.io/pyca/cryptography-runner-${{ matrix.IMAGE.IMAGE }}:aarch64
+    strategy:
+      fail-fast: false
+      matrix:
+        IMAGE:
+          - {IMAGE: "ubuntu-focal", TOXENV: "py38"}
+          - {IMAGE: "alpine", TOXENV: "py310"}
+    name: "${{ matrix.IMAGE.TOXENV }} on ${{ matrix.IMAGE.IMAGE }} linux arm64"
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3.3.0
+        timeout-minutes: 3
+        with:
+          persist-credentials: false
+      - uses: actions/cache@v3.2.2
+        timeout-minutes: 5
+        with:
+          path: |
+            ~/.cache/pip/
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/registry/src/
+            ~/.cargo/git/db/
+            src/rust/target/
+          key: ${{ runner.os }}-${{ matrix.IMAGE.IMAGE }}-cargo-3-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: actions/checkout@v3.3.0
+        timeout-minutes: 3
+        with:
+          repository: "google/wycheproof"
+          path: "wycheproof"
+          ref: "master"
+      # When run in a docker container the home directory doesn't have the same owner as the
+      # apparent user so pip refuses to create a cache dir
+      - name: create pip cache dir
+        run: mkdir -p "${HOME}/.cache/pip"
+      - run: |
+          echo "OPENSSL_FORCE_FIPS_MODE=1" >> $GITHUB_ENV
+          echo "CFLAGS=-DUSE_OSRANDOM_RNG_FOR_TESTING" >> $GITHUB_ENV
+        if: matrix.IMAGE.FIPS
+      - run: /venv/bin/python -m pip install -c ci-constraints-requirements.txt tox coverage
+      - run: '/venv/bin/tox -vvv -- --wycheproof-root="wycheproof"'
+        env:
+          TOXENV: ${{ matrix.IMAGE.TOXENV }}
+          RUSTUP_HOME: /root/.rustup
+          CARGO_TARGET_DIR: ${{ format('{0}/src/rust/target/', github.workspace) }}
+          # OPENSSL_ENABLE_SHA1_SIGNATURES is for CentOS 9 Stream
+          OPENSSL_ENABLE_SHA1_SIGNATURES: 1
+      - uses: ./.github/actions/upload-coverage
