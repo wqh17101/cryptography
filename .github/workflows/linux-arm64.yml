@@ -30,7 +30,7 @@ jobs:
     steps:
       - run: |
           apk add gcompat
-          sed -i "s:ID=alpine:ID=NotpineForGHA:" /etc/os-release
+          # sed -i "s:ID=alpine:ID=NotpineForGHA:" /etc/os-release
       - uses: actions/checkout@v3.3.0
         timeout-minutes: 3
         with:
