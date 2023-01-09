@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - '*.*.x'
+      - 'macos-arm'
     tags:
       - '*.*'
       - '*.*.*'
@@ -24,11 +25,9 @@ jobs:
       fail-fast: false
       matrix:
         PYTHON:
-          - {TOXENV: "py310", BIN_PATH: '/Library/Frameworks/Python.framework/Versions/3.10/bin/python3'}
+          - {TOXENV: "py310", BIN_PATH: 'python3'}
     timeout-minutes: 10
     steps:
-      - name: "Delete workspace" # self-hosted runners need this, sigh
-        run: gfind ! -name '.' ! -name '..' -delete
       - uses: actions/checkout@v3.3.0
         with:
           persist-credentials: false
